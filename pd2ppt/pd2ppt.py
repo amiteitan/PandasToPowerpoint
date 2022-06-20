@@ -129,7 +129,91 @@ def process_position_parameter(param):
     else:
         return param
 
+def df_to_table_placeholder(placeholder, df,
+                    colnames=None, col_formatters=None, rounding=None,
+                    name=None, table_style=None):
+    shp = placeholder.insert_table(rows+1, cols)
+    shp = insert_df_table_to_shp(shp,df,colnames, col_formatters, rounding, name, table_style)
 
+return shp    
+    
+def insert_df_table_to_shp(shp, df,
+                colnames=None, col_formatters=None, rounding=None,
+                name=None, table_style=None):
+    """Converts a Pandas DataFrame to a PowerPoint table on the given
+    Slide of a PowerPoint presentation.
+
+    The table is a standard Powerpoint table, and can easily be modified with
+    the Powerpoint tools, for example: resizing columns, changing formatting etc.
+
+    Parameters
+    ----------
+    shp: ``pptx.slide.table_placeholder``
+        slide object from the python-pptx library containing the slide on which
+        you want the table to appear
+
+    df: pandas ``DataFrame``
+       DataFrame with the data
+
+    col_formatters: list, optional
+       A n_columns element long list containing format specifications for each
+       column. For example ['', ',', '.2'] does no special formatting for the
+       first column, uses commas as thousands separators in the second column,
+       and formats the third column as a float with 2 decimal places.
+
+    rounding: list, optional
+       A n_columns element long list containing a number for each integer
+       column that requires rounding that is then multiplied by -1 and passed
+       to round(). The practical upshot of this is that you can give something
+       like ['', 3, ''], which does nothing for the 1st and 3rd columns (as
+       they aren't integer values), but for the 2nd column, rounds away the 3
+       right-hand digits (eg. taking 25437 to 25000).
+
+    name: str, optional
+       A name to be given to the table in the Powerpoint file. This is not
+       displayed, but can help extract the table later to make further changes.
+    
+    table_style: str, optional
+       Powerpoint table style to be used with generated table. These are strings
+       that mirror the names of styles in Powerpoint, for example
+            Medium Style 2 - Accent 1 -> table_style='MediumStyle2Accent1'
+
+    Returns
+    -------
+    pptx.shapes.graphfrm.GraphicFrame
+        The python-pptx table (GraphicFrame) object that was created (which can
+        then be used to do further manipulation if desired)
+    """
+    rows, cols = df.shape
+
+    if colnames is None:
+        colnames = list(df.columns)
+
+    # Insert the column names
+    for col_index, col_name in enumerate(colnames):
+        shp.table.cell(0,col_index).text = col_name
+
+    m = df.values
+
+    for row in range(rows):
+        for col in range(cols):
+            val = m[row, col]
+
+            if col_formatters is None:
+                text = str(val)
+            else:
+                text = _do_formatting(val, col_formatters[col])
+
+            shp.table.cell(row+1, col).text = text
+
+    if name is not None:
+        shp.name = name
+
+    if table_style is not None:
+        table_graphic = shp._element.graphic.graphicData.tbl
+        table_graphic[0][-1].text = getattr(TableStyle, table_style)
+
+    return shp
 
 def df_to_table(slide, df, left=None, top=None, width=None, height=None,
                 colnames=None, col_formatters=None, rounding=None,
@@ -197,36 +281,9 @@ def df_to_table(slide, df, left=None, top=None, width=None, height=None,
     width = process_position_parameter(width)
     height = process_position_parameter(height)
 
-    rows, cols = df.shape
     shp = slide.shapes.add_table(rows+1, cols, left, top, width, height)
-
-    if colnames is None:
-        colnames = list(df.columns)
-
-    # Insert the column names
-    for col_index, col_name in enumerate(colnames):
-        shp.table.cell(0,col_index).text = col_name
-
-    m = df.values
-
-    for row in range(rows):
-        for col in range(cols):
-            val = m[row, col]
-
-            if col_formatters is None:
-                text = str(val)
-            else:
-                text = _do_formatting(val, col_formatters[col])
-
-            shp.table.cell(row+1, col).text = text
-
-    if name is not None:
-        shp.name = name
-
-    if table_style is not None:
-        table_graphic = shp._element.graphic.graphicData.tbl
-        table_graphic[0][-1].text = getattr(TableStyle, table_style)
-
+    shp = insert_df_table_to_shp(shp,df,colnames, col_formatters, rounding, name, table_style)
+  
     return shp
 
 
